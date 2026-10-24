@@ -1,5 +1,6 @@
 
 import React, { Suspense } from 'react';
+import Image from 'next/image';
 import { getAnimeById, getAnimeCharacters, getAnimeEpisodes, getAnimeRelations, getAnimeRecommendations } from '@/services/jikan';
 import type { RelatedAnimeItem } from '@/services/jikan';
 import { Metadata } from 'next';
@@ -70,13 +71,18 @@ export default async function AnimePage({ params }: AnimePageProps) {
     <div className="min-h-screen bg-zinc-950 text-white">
       {/* Hero Section */}
       <section className="relative h-[70vh] w-full flex items-end">
-        {/* Backdrop */}
+        {/* Backdrop (LCP) — AniList fallback may normalize this to '' */}
         <div className="absolute inset-0">
-          <img 
-            src={anime.images.webp.large_image_url} 
-            alt={anime.title}
-            className="w-full h-full object-cover opacity-30"
-          />
+          {anime.images.webp.large_image_url ? (
+            <Image 
+              src={anime.images.webp.large_image_url} 
+              alt={anime.title}
+              fill
+              priority
+              sizes="100vw"
+              className="w-full h-full object-cover opacity-30"
+            />
+          ) : null}
           <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/60 to-transparent" />
           <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-transparent" />
         </div>
@@ -85,11 +91,17 @@ export default async function AnimePage({ params }: AnimePageProps) {
           <div className="flex flex-col md:flex-row gap-8 items-end">
             {/* Poster */}
             <div className="hidden md:block w-64 aspect-[2/3] rounded-2xl overflow-hidden shadow-2xl border border-white/10 shrink-0 transform -rotate-1">
-              <img 
-                src={anime.images.webp.large_image_url} 
-                alt={anime.title}
-                className="w-full h-full object-cover"
-              />
+              {anime.images.webp.large_image_url ? (
+                <Image 
+                  src={anime.images.webp.large_image_url} 
+                  alt={anime.title}
+                  width={512}
+                  height={768}
+                  priority
+                  sizes="256px"
+                  className="w-full h-full object-cover"
+                />
+              ) : null}
             </div>
 
             <div className="flex-1">
@@ -130,7 +142,7 @@ export default async function AnimePage({ params }: AnimePageProps) {
                   <div className="flex -space-x-4">
                     {characters.slice(0, 4).map((char, i) => (
                       <div key={i} className="w-10 h-10 rounded-full border-2 border-zinc-950 overflow-hidden bg-zinc-900">
-                        <img src={char.character.images.webp.image_url} alt={char.character.name} className="w-full h-full object-cover" />
+                        <Image src={char.character.images.webp.image_url} alt={char.character.name} width={40} height={40} sizes="40px" className="w-full h-full object-cover" />
                       </div>
                     ))}
                   </div>
@@ -176,9 +188,12 @@ export default async function AnimePage({ params }: AnimePageProps) {
                 {characters.map((char) => (
                   <div key={char.character.mal_id} className="group cursor-pointer">
                     <div className="aspect-square rounded-2xl overflow-hidden mb-3 border border-white/5 bg-zinc-900">
-                      <img 
+                      <Image 
                         src={char.character.images.webp.image_url} 
                         alt={char.character.name} 
+                        width={300}
+                        height={300}
+                        sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, 150px"
                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                       />
                     </div>

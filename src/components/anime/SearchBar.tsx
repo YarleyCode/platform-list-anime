@@ -1,8 +1,45 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
+import Image from 'next/image';
 import { JikanAnime } from '@/services/jikan';
 import Link from 'next/link';
+
+// ─── In-memory search cache (bounded + TTL) ────────────────────────────────────
+// Survives re-renders of the SearchBar; avoids re-fetching queries already seen.
+const SEARCH_CACHE_MAX = 50;
+const SEARCH_CACHE_TTL_MS = 5 * 60_000; // 5 minutes
+const searchCache = new Map<string, { ts: number; data: JikanAnime[] }>();
+
+function readSearchCache(key: string): JikanAnime[] | null {
+  const hit = searchCache.get(key);
+  if (!hit) return null;
+  if (Date.now() - hit.ts > SEARCH_CACHE_TTL_MS) {
+    searchCache.delete(key);
+    return null;
+  }
+  // LRU touch: re-insert so the entry counts as recently used.
+  searchCache.delete(key);
+  searchCache.set(key, hit);
+  return hit.data;
+}
+
+function writeSearchCache(key: string, data: JikanAnime[]) {
+  if (searchCache.has(key)) searchCache.delete(key);
+  searchCache.set(key, { ts: Date.now(), data });
+  while (searchCache.size > SEARCH_CACHE_MAX) {
+    const oldest = searchCache.keys().next().value;
+    if (oldest === undefined) break;
+    searchCache.delete(oldest);
+  }
+}
+
+function isAbortError(err: unknown): boolean {
+  return (
+    (err instanceof DOMException && err.name === 'AbortError') ||
+    (err instanceof Error && err.name === 'AbortError')
+  );
+}
 
 export default function SearchBar() {
   const [query, setQuery] = useState('');
@@ -24,10 +61,18 @@ export default function SearchBar() {
   }, []);
 
   useEffect(() => {
+    // Short queries show no dropdown — state is already reset by the change handler.
+    if (query.length <= 2) return;
+
+    const cacheKey = query.trim().toLowerCase();
+    const controller = new AbortController();
+
     const timer = setTimeout(async () => {
-      if (query.length <= 2) {
-        setResults([]);
-        setIsOpen(false);
+      // Serve from cache instantly — no request, no loading flicker.
+      const cached = readSearchCache(cacheKey);
+      if (cached) {
+        setResults(cached);
+        setIsOpen(true);
         setError(null);
         setIsLoading(false);
         return;
@@ -36,25 +81,37 @@ export default function SearchBar() {
       setIsLoading(true);
       setError(null);
       try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+        const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`, {
+          signal: controller.signal,
+        });
         const json = await res.json();
 
         if (!res.ok) {
           throw new Error(json.error || 'Error al buscar');
         }
 
-        setResults((json.data ?? []).slice(0, 5));
+        const data: JikanAnime[] = (json.data ?? []).slice(0, 5);
+        writeSearchCache(cacheKey, data);
+        setResults(data);
         setIsOpen(true);
       } catch (err: unknown) {
+        // A newer query (or unmount) aborted this request — ignore it silently.
+        if (controller.signal.aborted || isAbortError(err)) return;
         setError(err instanceof Error ? err.message : 'Error al buscar. Intenta de nuevo.');
         setResults([]);
         setIsOpen(true);
       } finally {
-        setIsLoading(false);
+        // Only the request that still owns the UI may clear the spinner.
+        if (!controller.signal.aborted) {
+          setIsLoading(false);
+        }
       }
-    }, 500);
+    }, 300);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [query]);
 
   const closeDropdown = () => {
@@ -87,7 +144,17 @@ export default function SearchBar() {
           placeholder="Buscar anime..."
           className="bg-transparent border-none focus:outline-none text-sm text-white ml-2 w-full min-w-0"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            const next = e.target.value;
+            setQuery(next);
+            if (next.length <= 2) {
+              // Reset immediately on short queries (event handler, not effect).
+              setResults([]);
+              setIsOpen(false);
+              setError(null);
+              setIsLoading(false);
+            }
+          }}
           onFocus={() => query.length > 2 && setIsOpen(true)}
         />
         {isLoading && (
@@ -114,7 +181,11 @@ export default function SearchBar() {
       {isOpen && !error && results.length > 0 && (
         <div className="absolute top-full mt-2 left-0 right-0 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden z-[200] animate-in fade-in slide-in-from-top-2 duration-200">
           <div className="py-2">
-            {results.map((anime) => (
+            {results.map((anime) => {
+              // AniList fallback normalizes covers to '' — never pass an empty src to next/image.
+              const thumb =
+                anime.images.webp?.small_image_url || anime.images.jpg?.small_image_url || null;
+              return (
               <Link
                 key={anime.mal_id}
                 href={`/anime/${anime.mal_id}`}
@@ -122,11 +193,16 @@ export default function SearchBar() {
                 onClick={closeDropdown}
               >
                 <div className="relative w-10 h-14 flex-shrink-0">
-                  <img
-                    src={anime.images.webp?.small_image_url ?? anime.images.jpg?.small_image_url}
-                    alt={anime.title}
-                    className="w-full h-full object-cover rounded-md"
-                  />
+                  {thumb ? (
+                    <Image
+                      src={thumb}
+                      alt={anime.title}
+                      width={40}
+                      height={56}
+                      sizes="40px"
+                      className="w-full h-full object-cover rounded-md"
+                    />
+                  ) : null}
                 </div>
                 <div className="flex-1 min-w-0">
                   <h4 className="text-sm font-bold text-white truncate">{anime.title}</h4>
@@ -141,7 +217,8 @@ export default function SearchBar() {
                   </div>
                 </div>
               </Link>
-            ))}
+              );
+            })}
             <div className="p-2 border-t border-zinc-800">
               <Link
                 href={`/search?q=${encodeURIComponent(query)}`}

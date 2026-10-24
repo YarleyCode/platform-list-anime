@@ -1,7 +1,8 @@
 
 "use client";
 
-import React from 'react';
+import React, { useState } from 'react';
+import Image from 'next/image';
 import FavoriteButton from '@/components/anime/FavoriteButton';
 
 interface AnimeCardProps {
@@ -15,6 +16,8 @@ interface AnimeCardProps {
 
 export default function AnimeCard({ mal_id, image, title, score, is_favorite = false, onClick }: AnimeCardProps) {
   const hasValidImage = image && image.trim().length > 0;
+  // On load error we swap to a placeholder cover (same behaviour as the old <img> onError).
+  const [fallbackSrc, setFallbackSrc] = useState<string | null>(null);
 
   return (
     <div 
@@ -23,12 +26,14 @@ export default function AnimeCard({ mal_id, image, title, score, is_favorite = f
     >
       <div className="relative h-full w-full rounded-2xl overflow-hidden bg-zinc-800 border border-white/5 transition-all duration-300 group-hover:scale-[1.02] group-hover:border-primary/50 group-hover:shadow-2xl group-hover:shadow-primary/20">
         {hasValidImage ? (
-          <img 
-            src={image} 
+          <Image 
+            src={fallbackSrc ?? image} 
             alt={title}
+            fill
+            sizes="(max-width: 768px) 176px, 224px"
             className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = `https://placehold.co/400x600/18181b/ffffff?text=${encodeURIComponent(title)}`;
+            onError={() => {
+              if (!fallbackSrc) setFallbackSrc(`https://placehold.co/400x600/18181b/ffffff?text=${encodeURIComponent(title)}`);
             }}
           />
         ) : (

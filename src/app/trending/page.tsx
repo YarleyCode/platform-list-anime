@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import Image from "next/image";
 import Link from "next/link";
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
@@ -45,6 +46,10 @@ const SORT_FILTERS = [
 
 function TrendingAnimeCard({ anime, rank }: { anime: TrendingAnime; rank: number }) {
   const [hovered, setHovered] = useState(false);
+  // On load error we swap to a placeholder cover (same behaviour as the old <img> onError).
+  const [fallbackSrc, setFallbackSrc] = useState<string | null>(null);
+  // AniList fallback normalizes covers to '' — never pass an empty src to next/image.
+  const cover = anime.images.webp?.large_image_url || anime.images.jpg?.large_image_url || null;
 
   return (
     <Link href={`/anime/${anime.mal_id}`} className="group block">
@@ -73,14 +78,18 @@ function TrendingAnimeCard({ anime, rank }: { anime: TrendingAnime; rank: number
         )}
 
         {/* Image */}
-        <img
-          src={anime.images.webp?.large_image_url || anime.images.jpg?.large_image_url}
-          alt={anime.title}
-          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-          onError={(e) => {
-            (e.target as HTMLImageElement).src = `https://placehold.co/400x600/18181b/ffffff?text=${encodeURIComponent(anime.title)}`;
-          }}
-        />
+        {cover || fallbackSrc ? (
+          <Image
+            src={fallbackSrc ?? cover!}
+            alt={anime.title}
+            fill
+            sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, (max-width: 1280px) 20vw, 180px"
+            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+            onError={() => {
+              if (!fallbackSrc) setFallbackSrc(`https://placehold.co/400x600/18181b/ffffff?text=${encodeURIComponent(anime.title)}`);
+            }}
+          />
+        ) : null}
 
         {/* Hover overlay */}
         <div

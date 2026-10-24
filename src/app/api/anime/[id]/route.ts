@@ -9,7 +9,11 @@ async function tryJikan(endpoint: string): Promise<any | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 8000);
   try {
-    const res = await fetch(`${JIKAN_API_BASE}${endpoint}`, { signal: controller.signal });
+    const res = await fetch(`${JIKAN_API_BASE}${endpoint}`, {
+      signal: controller.signal,
+      // Shared Next data cache: anime details change rarely — 1 hour.
+      next: { revalidate: 3600 },
+    });
     clearTimeout(timer);
     if (!res.ok) return null;
     return res.json();
@@ -53,6 +57,8 @@ async function fetchAniListById(malId: number): Promise<any | null> {
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify(graphql),
       signal: controller.signal,
+      // POST + next.revalidate is cached in the Next data cache (same as /api/search).
+      next: { revalidate: 1800 },
     });
     clearTimeout(timer);
     if (!res.ok) return null;

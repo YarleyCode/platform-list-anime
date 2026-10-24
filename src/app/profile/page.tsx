@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
+import Image from 'next/image';
 import { getLibrary } from '@/services/library';
 import { getProfile, type UserProfile } from '@/services/profile';
 import Link from 'next/link';
@@ -81,7 +82,9 @@ export default function ProfilePage() {
               <div className="w-32 h-32 rounded-full bg-gradient-to-tr from-primary to-purple-600 p-1 mb-6 shadow-xl ring-4 ring-primary/10">
                 <div className="w-full h-full rounded-full bg-zinc-900 flex items-center justify-center overflow-hidden border-4 border-zinc-900">
                   {profile?.avatar_url ? (
-                    <img src={profile.avatar_url} alt={displayName} className="w-full h-full object-cover" />
+                    /* avatar_url is free-text user input (any host) → unoptimized
+                       skips the remotePatterns check so it never breaks at runtime. */
+                    <Image src={profile.avatar_url} alt={displayName} width={128} height={128} unoptimized className="w-full h-full object-cover" />
                   ) : (
                     <span className="text-4xl font-black text-white italic">
                       {displayName.charAt(0).toUpperCase()}

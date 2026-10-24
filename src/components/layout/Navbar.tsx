@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { type UserProfile } from "@/services/profile";
 import SearchBar from "@/components/anime/SearchBar";
@@ -37,9 +38,12 @@ export default function Navbar({ profile }: NavbarProps) {
         {/* Logo */}
         <Link href="/" className="group flex items-center flex-shrink-0">
           <div className="bg-white/5 border border-white/10 p-1.5 rounded-2xl shadow-xl backdrop-blur-sm transition-all group-hover:border-primary/40 group-hover:bg-white/10">
-            <img
+            <Image
               src="/assets/images/logo.jpeg"
               alt="EPINEKO Logo"
+              width={800}
+              height={513}
+              sizes="120px"
               className="h-10 w-auto rounded-xl object-contain transition-transform group-hover:scale-105"
             />
           </div>
@@ -85,7 +89,9 @@ export default function Navbar({ profile }: NavbarProps) {
             >
               <div className="bg-zinc-800 text-white rounded-full w-full h-full flex items-center justify-center overflow-hidden border border-white/5">
                 {profile?.avatar_url ? (
-                  <img src={profile.avatar_url} alt={profile.full_name || profile.username} className="w-full h-full object-cover" />
+                  /* avatar_url is free-text user input (any host) → unoptimized
+                     skips the remotePatterns check so it never breaks at runtime. */
+                  <Image src={profile.avatar_url} alt={profile.full_name || profile.username} width={96} height={96} unoptimized className="w-full h-full object-cover" />
                 ) : (
                   <span className="text-xs font-black italic">
                     {(profile?.username || profile?.full_name || 'U').charAt(0).toUpperCase()}

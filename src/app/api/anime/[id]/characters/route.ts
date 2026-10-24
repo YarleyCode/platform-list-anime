@@ -8,7 +8,11 @@ async function tryJikan(endpoint: string): Promise<any | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 8000);
   try {
-    const res = await fetch(`${JIKAN_API_BASE}${endpoint}`, { signal: controller.signal });
+    const res = await fetch(`${JIKAN_API_BASE}${endpoint}`, {
+      signal: controller.signal,
+      // Shared Next data cache: character lists barely change — 24 hours.
+      next: { revalidate: 86400 },
+    });
     clearTimeout(timer);
     if (!res.ok) return null;
     return res.json();

@@ -289,6 +289,24 @@ export interface RelatedAnimeItem {
   relationType: 'prequel' | 'sequel' | 'recommendation';
 }
 
+/** Run async tasks over `items` with a hard concurrency cap, preserving input order. */
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let cursor = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (cursor < items.length) {
+      const i = cursor++;
+      results[i] = await fn(items[i]);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
 /** Fetch prequel/sequel from Jikan; fallback to AniList on failure. */
 export const getAnimeRelations = async (id: number): Promise<RelatedAnimeItem[]> => {
   const jikanData = await tryJikan<any>(`/anime/${id}/relations`, 86400);
@@ -296,19 +314,49 @@ export const getAnimeRelations = async (id: number): Promise<RelatedAnimeItem[]>
     const filtered = jikanData.data.filter(
       (r: any) => r.relation === 'Prequel' || r.relation === 'Sequel'
     );
-    const items: RelatedAnimeItem[] = [];
+
+    // Jikan relation entries only carry { mal_id, type, name, url } — no images —
+    // so anime entries still need one detail fetch for the cover. Entries of other
+    // types (manga, etc.) can't be resolved via /anime/{id} (overlapping id space),
+    // so skip the detail fetch for them and keep name + null image.
+    const flat: {
+      malId: number;
+      name: string;
+      relationType: 'prequel' | 'sequel';
+      needsDetail: boolean;
+    }[] = [];
     for (const rel of filtered) {
-      for (const entry of rel.entry) {
-        await sleep(400);
-        const detail = await tryJikan<any>(`/anime/${entry.mal_id}`, 86400);
-        items.push({
+      for (const entry of rel.entry ?? []) {
+        if (!entry?.mal_id) continue;
+        flat.push({
           malId: entry.mal_id,
-          title: detail?.data?.title || entry.name || 'Sin título',
-          imageUrl: detail?.data?.images?.jpg?.image_url ?? null,
+          name: entry.name || 'Sin título',
           relationType: rel.relation === 'Prequel' ? 'prequel' : 'sequel',
+          needsDetail: !entry.type || entry.type === 'anime',
         });
       }
     }
+
+    // Detail fetches run in parallel (max 3 in flight, no sleeps) — Next's fetch
+    // cache with revalidate 86400 also dedupes repeated ids across requests.
+    const items: RelatedAnimeItem[] = await mapWithConcurrency(flat, 3, async (rel) => {
+      if (!rel.needsDetail) {
+        return {
+          malId: rel.malId,
+          title: rel.name,
+          imageUrl: null,
+          relationType: rel.relationType,
+        };
+      }
+      const detail = await tryJikan<any>(`/anime/${rel.malId}`, 86400);
+      return {
+        malId: rel.malId,
+        title: detail?.data?.title || rel.name || 'Sin título',
+        imageUrl: detail?.data?.images?.jpg?.image_url ?? null,
+        relationType: rel.relationType,
+      };
+    });
+
     return items;
   }
 

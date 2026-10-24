@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
+import Image from 'next/image';
 import { getLibraryItem, addToLibrary, removeFromLibrary } from '@/services/library';
 
 interface AnimeDetailsModalProps {
@@ -91,9 +92,11 @@ export default function AnimeDetailsModal({ isOpen, onClose, anime }: AnimeDetai
           {/* Left Side: Poster / Background */}
           <div className="relative w-full md:w-2/5 aspect-[2/3] md:aspect-auto">
             {hasValidImage ? (
-              <img 
+              <Image 
                 src={anime.image} 
                 alt={anime.title}
+                fill
+                sizes="(max-width: 768px) 100vw, 40vw"
                 className="w-full h-full object-cover"
               />
             ) : (

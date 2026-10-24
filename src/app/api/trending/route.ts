@@ -13,7 +13,11 @@ async function tryJikan<T>(url: string, retries = 2): Promise<T | null> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 9000);
     try {
-      const res = await fetch(url, { signal: controller.signal });
+      const res = await fetch(url, {
+        signal: controller.signal,
+        // Shared Next data cache: trending lists stay fresh for 5 minutes.
+        next: { revalidate: 300 },
+      });
       clearTimeout(timer);
       if (res.ok) return res.json() as Promise<T>;
       if (res.status === 429 || res.status >= 500) {
@@ -55,6 +59,8 @@ async function fetchAniListTrending(page: number, perPage: number): Promise<any[
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify({ query: gql, variables: { page, perPage } }),
       signal: controller.signal,
+      // POST + next.revalidate is cached in the Next data cache (same as /api/search).
+      next: { revalidate: 300 },
     });
     clearTimeout(timer);
     if (!res.ok) return null;

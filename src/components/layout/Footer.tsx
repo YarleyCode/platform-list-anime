@@ -1,5 +1,6 @@
 
 import React from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 
 export default function Footer() {
@@ -11,9 +12,12 @@ export default function Footer() {
           <div className="md:col-span-2 space-y-6">
             <Link href="/" className="group inline-block">
               <div className="bg-white/5 border border-white/10 p-2 rounded-3xl shadow-2xl backdrop-blur-sm transition-all group-hover:border-primary/40 group-hover:bg-white/10">
-                <img 
+                <Image 
                   src="/assets/images/logo.jpeg" 
                   alt="EPINEKO Logo" 
+                  width={800}
+                  height={513}
+                  sizes="160px"
                   className="h-16 w-auto rounded-2xl object-contain transition-transform group-hover:scale-105" 
                 />
               </div>

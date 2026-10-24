@@ -7,12 +7,17 @@ const ANILIST_API = 'https://graphql.anilist.co';
 // ─── Jikan search ──────────────────────────────────────────────────────────────
 async function searchJikan(query: string): Promise<any[] | null> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 8000);
+  // Short timeout so the AniList fallback kicks in quickly when Jikan is slow.
+  const timer = setTimeout(() => controller.abort(), 4000);
 
   try {
     const res = await fetch(
       `${JIKAN_API_BASE}/anime?q=${encodeURIComponent(query)}&limit=6&sfw=true`,
-      { signal: controller.signal }
+      {
+        signal: controller.signal,
+        // Shared Next data cache: repeated dropdown queries are served from cache.
+        next: { revalidate: 120 },
+      }
     );
     clearTimeout(timer);
 
@@ -58,6 +63,8 @@ async function searchAniList(query: string): Promise<any[]> {
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify(graphql),
       signal: controller.signal,
+      // Shared Next data cache: same as the Jikan search above.
+      next: { revalidate: 120 },
     });
     clearTimeout(timer);
 
